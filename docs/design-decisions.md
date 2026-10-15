@@ -74,3 +74,28 @@ python3 -m unittest discover -s tests -v
 ```
 
 The design decisions and test results should be updated if implementation behavior changes.
+
+## 8. Ticket Notes and Extended Storage Validation
+
+### Ticket Notes API
+
+- Tickets may contain a `notes` list.
+- Each note contains an `id`, `author`, and `message`.
+- Note IDs are generated sequentially using the format `N001`, `N002`, and so on, within a ticket.
+- Blank authors and messages are rejected.
+- Notes cannot be added to resolved tickets.
+- Attempting to add a note to an unknown ticket raises `KeyError`.
+
+### Extended Storage Validation
+
+- Loaded ticket records must contain the required ticket fields.
+- Ticket IDs must follow the ticket ID format and must be unique.
+- Ticket categories, urgency levels, priorities, and statuses must be valid.
+- The affected-user count must be a positive integer.
+- Notes must be a list of valid note records, with no duplicate note IDs within a ticket.
+- Invalid saved data is rejected rather than silently accepted.
+- Saving validates the data before writing and uses a temporary file before replacing the saved JSON file.
+
+### Additional Tests
+
+The test suite covers note creation, note ID generation, invalid note input, resolved tickets, unknown tickets, duplicate ticket IDs, invalid ticket records, and JSON persistence.
