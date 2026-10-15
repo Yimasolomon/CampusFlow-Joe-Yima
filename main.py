@@ -1,6 +1,8 @@
 
 from pathlib import Path
 
+from campusflow.understanding_check import run_understanding_check
+from campusflow.notes import add_note
 from campusflow.tickets import create_ticket, generate_ticket_id
 from campusflow.storage import load_tickets, save_tickets
 from campusflow.workflow import (
@@ -11,7 +13,11 @@ from campusflow.workflow import (
     find_ticket,
 )
 from campusflow.reports import print_report
-
+from campusflow.search import (
+    search_tickets,
+    sort_search_results,
+    print_search_results,
+)
 
 DATA_FILE = Path("data/tickets.json")
 
@@ -103,6 +109,111 @@ def display_queue(tickets):
         show_ticket(ticket)
 
 
+
+def add_note_to_ticket(tickets):
+    """Add a note to an existing unresolved ticket."""
+    ticket_id = input("Ticket ID: ").strip().upper()
+    author = input("Note author: ")
+    message = input("Note message: ")
+
+    note = add_note(tickets, ticket_id, author, message)
+    save_tickets(tickets, DATA_FILE)
+
+    print(f"Note {note['id']} added to ticket {ticket_id}.")
+
+def view_ticket_notes(tickets):
+    """Display notes attached to a ticket."""
+    ticket_id = input("Ticket ID: ").strip().upper()
+
+    ticket = next(
+        (item for item in tickets if item.get("id") == ticket_id),
+        None,
+    )
+
+    if ticket is None:
+        raise KeyError(f"Ticket {ticket_id} was not found.")
+
+    notes = ticket.get("notes", [])
+
+    if not notes:
+        print(f"No notes found for ticket {ticket_id}.")
+        return
+
+    print(f"\n--- Notes for {ticket_id} ---")
+
+    for note in notes:
+        print(f"\n{note['id']} | {note['author']}")
+        print(note["message"])
+
+
+def prompt_filter(label, allowed_values):
+    """Ask for an optional filter and retry invalid choices."""
+    while True:
+        value = input(
+            f"{label} ({'/'.join(allowed_values)}, or Enter for all): "
+        ).strip()
+
+        if not value:
+            return None
+
+        if value.casefold() in {
+            option.casefold() for option in allowed_values
+        }:
+            return value
+
+        print("Invalid filter. Please choose one of the listed options.")
+
+
+def search_existing_tickets(tickets):
+    """Search tickets using optional filters and optional sorting."""
+    title = input("Title contains (or Enter for all): ").strip() or None
+
+    category = prompt_filter(
+        "Category",
+        ["Network", "Hardware", "Software", "Other"],
+    )
+    status = prompt_filter(
+        "Status",
+        ["open", "in_progress", "resolved"],
+    )
+    priority = prompt_filter(
+        "Priority",
+        ["critical", "high", "medium", "low"],
+    )
+
+    try:
+        results = search_tickets(
+            tickets,
+            title=title,
+            category=category,
+            status=status,
+            priority=priority,
+        )
+    except ValueError as error:
+        print(f"Search error: {error}")
+        return
+
+    if not results:
+        print("No matching tickets found.")
+        return
+
+    while True:
+        sort_choice = input(
+            "Sort results by priority? (y/n): "
+        ).strip().casefold()
+
+        if sort_choice in ("y", "yes"):
+            results = sort_search_results(results)
+            break
+
+        if sort_choice in ("n", "no"):
+            break
+
+        print("Please enter y or n.")
+
+    print_search_results(results)
+
+
 def main():
     try:
         tickets = load_tickets(DATA_FILE)
@@ -119,6 +230,13 @@ def main():
         "5": ("Reopen resolved ticket", lambda: reopen_resolved_ticket(tickets)),
         "6": ("View priority queue", lambda: display_queue(tickets)),
         "7": ("View reports", lambda: print_report(tickets)),
+        "8": ("Search tickets", lambda: search_existing_tickets(tickets)),
+        "9": (
+            "Engineering Understanding Check",
+            lambda: run_understanding_check(),
+        ),
+        "10": ("Add note to ticket", lambda: add_note_to_ticket(tickets)),
+        "11": ("View ticket notes", lambda: view_ticket_notes(tickets)),
     }
 
     while True:
